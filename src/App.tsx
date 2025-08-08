@@ -14,6 +14,13 @@ const COLOR_PRESETS: ColorPresets = {
 const PRESET_KEYS = Object.keys(COLOR_PRESETS);
 
 const KEY_TO_INDEX: Record<string, number> = { q:0,w:1,e:2,r:3,a:4,s:5,d:6,f:7,z:8,x:9,c:10,v:11 };
+const PAD_SIZE_LEVELS = [
+  { label: 'XL', cols: 2 },
+  { label: 'L', cols: 3 },
+  { label: 'M', cols: 4 },
+  { label: 'S', cols: 5 },
+  { label: 'XS', cols: 6 },
+];
 
 export default function App(){
   const { pads, setPads, globalVolume, setGlobalVolume, nowPlaying, setNowPlaying, triggerPad, assignFile, assignFilesFrom, stopAll, decode } = useAudioEngine(12);
@@ -22,6 +29,7 @@ export default function App(){
   const [preset, setPreset] = useState(PRESET_KEYS[0]);
   const [pulsePad, setPulsePad] = useState<number | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
+  const [padCols, setPadCols] = useState<number>(3); // default L (従来=3列)
 
   // Keyboard listener
   useEffect(()=>{ function handleKey(e:KeyboardEvent){ const idx = KEY_TO_INDEX[e.key.toLowerCase()]; if(idx!==undefined){ e.preventDefault(); triggerPad(idx); setPulse(idx); } } window.addEventListener('keydown', handleKey); return ()=>window.removeEventListener('keydown', handleKey); }, [triggerPad]);
@@ -33,15 +41,19 @@ export default function App(){
   function saveCurrent(){ save(newPresetName); setNewPresetName(''); }
   async function loadPreset(p:any){ await load(p, decode); }
 
+  const gridColsClass = { 2:'grid-cols-2', 3:'grid-cols-3', 4:'grid-cols-4', 5:'grid-cols-5', 6:'grid-cols-6' }[padCols] as string;
+
   return (
     <div className="min-h-screen bg-black text-white pb-28" onDrop={onDrop} onDragOver={(e)=>e.preventDefault()}>
+      {/* Tailwind safelist (hidden span keeps classes so they are generated) */}
+      <span className="hidden grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6" />
       <style>{`@keyframes padPulse {0%{transform:scale(1);}50%{transform:scale(0.96) translateZ(0);}100%{transform:scale(1);} } .pulse{animation:padPulse 180ms ease-out;} .glow{box-shadow:0 0 24px rgba(255,255,255,0.08), inset 0 0 8px rgba(255,255,255,0.06);}`}</style>
       <div className="px-4 pt-5 pb-2 flex items-center justify-between">
         <div className="text-lg font-bold tracking-wide">VIBE-PADS</div>
         <button onClick={()=>setSheetOpen(true)} className="px-3 py-2 rounded-full bg-white/10 hover:bg-white/20">Settings</button>
       </div>
       {nowPlaying && <div className="mx-4 mb-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs truncate">Now Playing: {nowPlaying}</div>}
-      <div className="grid grid-cols-3 gap-3 px-4">
+      <div className={`grid ${gridColsClass} gap-3 px-4`}>
         {pads.map((pad,i)=>{ const grad = COLOR_PRESETS[preset][i%12]; return <Pad key={i} index={i} pad={pad} gradient={grad} pulsing={pulsePad===i} onTrigger={()=>{ triggerPad(i); setPulse(i); }} onPick={(f)=>assignFile(i,f)} onDropFiles={(files)=>assignFilesFrom(i,files)} />; })}
       </div>
       <div className="fixed bottom-3 inset-x-0 px-4">
@@ -66,6 +78,12 @@ export default function App(){
               <div>
                 <label className="text-xs opacity-80">Color Preset</label>
                 <select value={preset} onChange={(e)=>setPreset(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs">{PRESET_KEYS.map(k=> <option key={k} value={k}>{k}</option>)}</select>
+              </div>
+              <div>
+                <label className="text-xs opacity-80" title="パッドの大きさ (列数)">Pad Size</label>
+                <select value={padCols} onChange={(e)=>setPadCols(parseInt(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs">
+                  {PAD_SIZE_LEVELS.map(l=> <option key={l.cols} value={l.cols}>{l.label}</option>)}
+                </select>
               </div>
               <div className="col-span-2"><PadEditor pads={pads} setPads={setPads} /></div>
               <div className="col-span-2">
