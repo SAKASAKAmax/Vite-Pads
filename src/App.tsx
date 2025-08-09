@@ -40,6 +40,9 @@ export const App: React.FC = () => {
   const [nowPlaying, setNowPlaying] = useState('');
   const [preset, setPreset] = useState(PRESET_KEYS[0]);
   const [pulsePad, setPulsePad] = useState<number | null>(null);
+  // Pad size (sm / md / lg)
+  const [padSize, setPadSize] = useState<'sm' | 'md' | 'lg'>(() => (localStorage.getItem('padSize') as 'sm' | 'md' | 'lg') || 'md');
+  useEffect(()=>{ localStorage.setItem('padSize', padSize); }, [padSize]);
   // Preset states
   const [presets, setPresets] = useState<PadPreset[]>(()=>loadStoredPresets());
   const [newPresetName, setNewPresetName] = useState('');
@@ -129,12 +132,15 @@ export const App: React.FC = () => {
 
       {nowPlaying && <div className="mx-4 mb-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs truncate">Now Playing: {nowPlaying}</div>}
 
-      <div className="grid grid-cols-3 gap-3 px-4">
-        {pads.map((pad,i)=>{
-          const grad = COLOR_PRESETS[preset][i%12];
-          return <Pad key={i} index={i} pad={pad} gradient={grad} pulsing={pulsePad===i} onTrigger={()=>triggerPad(i)} onPick={(f)=>assignFile(i,f)} onDropFiles={(files)=>assignFilesFrom(i,files)} />;
-        })}
-      </div>
+      {/* Pads Grid */}
+      {(() => { const sizeToCols = { sm:'grid-cols-4', md:'grid-cols-3', lg:'grid-cols-2' }; return (
+        <div className={`grid ${sizeToCols[padSize]} gap-3 px-4`}>
+          {pads.map((pad,i)=>{
+            const grad = COLOR_PRESETS[preset][i%12];
+            return <Pad key={i} index={i} pad={pad} gradient={grad} pulsing={pulsePad===i} onTrigger={()=>triggerPad(i)} onPick={(f)=>assignFile(i,f)} onDropFiles={(files)=>assignFilesFrom(i,files)} />;
+          })}
+        </div>
+      ); })()}
 
       <div className="fixed bottom-3 inset-x-0 px-4">
         <div className="rounded-2xl bg-white/5 backdrop-blur border border-white/10 p-3 flex items-center justify-between">
@@ -160,6 +166,14 @@ export const App: React.FC = () => {
                 <label className="text-xs opacity-80">Color Preset</label>
                 <select value={preset} onChange={(e)=>setPreset(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs">
                   {PRESET_KEYS.map(k=> <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs opacity-80">Pad Size</label>
+                <select value={padSize} onChange={(e)=>setPadSize(e.target.value as 'sm'|'md'|'lg')} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs">
+                  <option value="sm">Small (4 cols)</option>
+                  <option value="md">Medium (3 cols)</option>
+                  <option value="lg">Large (2 cols)</option>
                 </select>
               </div>
               <div className="col-span-2"><PadEditor pads={pads} setPads={setPads} /></div>
