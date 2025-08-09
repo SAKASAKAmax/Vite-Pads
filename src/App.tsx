@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Pad } from './components/Pad';
+import { PadEditor } from './components/PadEditor';
+import type { PadData } from './types';
+import { defaultPad } from './types';
 
 // --- Color presets (12 pads) ---
 const COLOR_PRESETS: Record<string, string[]> = {
@@ -20,19 +24,7 @@ const COLOR_PRESETS: Record<string, string[]> = {
 };
 const PRESET_KEYS = Object.keys(COLOR_PRESETS);
 
-interface PadData {
-  name: string;
-  buffer: AudioBuffer | null;
-  volume: number;
-  pitch: number;
-  loop: boolean;
-  choke: boolean;
-  thumb?: string;
-  rawData?: string; // base64 (ArrayBuffer) for preset persistence
-}
-function defaultPad(): PadData { return { name: 'Empty', buffer: null, volume: 0.95, pitch: 1.0, loop: false, choke: true }; }
-
-// Preset types
+// Preset types & helpers (shared only inside App for now)
 interface PadPresetPad { name:string; volume:number; pitch:number; loop:boolean; choke:boolean; rawData?:string|null; }
 interface PadPreset { id:string; name:string; created:number; pads:PadPresetPad[]; }
 const PRESET_STORE_KEY = 'vibePadPresetsV1';
@@ -41,7 +33,7 @@ function saveStoredPresets(list:PadPreset[]) { try { localStorage.setItem(PRESET
 function arrayBufferToBase64(buf:ArrayBuffer){ let b=''; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) b+=String.fromCharCode(bytes[i]); return btoa(b); }
 function base64ToArrayBuffer(b64:string){ const bin=atob(b64); const len=bin.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
 
-export default function App() {
+export const App: React.FC = () => {
   const [pads, setPads] = useState<PadData[]>(() => Array.from({ length: 12 }, defaultPad));
   const [globalVolume, setGlobalVolume] = useState(0.95);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -197,72 +189,5 @@ export default function App() {
       )}
     </div>
   );
-}
-
-interface PadProps { index:number; pad:PadData; gradient:string; pulsing:boolean; onTrigger:()=>void; onPick:(f:File)=>void; onDropFiles:(files:FileList)=>void; }
-function Pad({ index, pad, gradient, pulsing, onTrigger, onPick, onDropFiles }: PadProps){
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [pressing, setPressing] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  function onLongPress(){ fileInputRef.current?.click(); }
-  return (
-    <div
-      className="rounded-2xl p-2 select-none transition-colors"
-      data-pad
-      onDragOver={(e)=>{ e.preventDefault(); setDragOver(true); }}
-      onDragLeave={()=>setDragOver(false)}
-      onDrop={(e)=>{ e.preventDefault(); const files=e.dataTransfer.files; if(files?.length) onDropFiles(files); setDragOver(false); }}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <button
-          className="text-[11px] px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 truncate"
-          onPointerDown={()=>{ setPressing(true); setTimeout(()=>{ if(pressing) onLongPress(); }, 450); }}
-          onPointerUp={()=>setPressing(false)}
-          onPointerLeave={()=>setPressing(false)}
-          title="長押しで音声を読み込み"
-        >
-          {pad.name !== 'Empty' ? truncate(pad.name, 18) : `Pad ${index+1}`}
-        </button>
-        <span className="text-[10px] opacity-60">{keyHint(index)}</span>
-      </div>
-      <button
-        onClick={onTrigger}
-        onContextMenu={(e)=>{ e.preventDefault(); onLongPress(); }}
-        disabled={!pad.buffer}
-        className={`w-full aspect-square rounded-3xl bg-gradient-to-br ${gradient} border border-white/10 ${pulsing?'pulse':''} glow active:scale-[0.98] transition-transform ${dragOver?'ring-2 ring-white/60':''}`}
-      />
-      <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={(e)=>{ const f=e.target.files?.[0]; if(f) onPick(f); if(fileInputRef.current) fileInputRef.current.value=''; }} />
-    </div>
-  );
-}
-
-interface PadEditorProps { pads:PadData[]; setPads:React.Dispatch<React.SetStateAction<PadData[]>>; }
-function PadEditor({ pads, setPads }: PadEditorProps){
-  const [current, setCurrent] = useState(0);
-  const p = pads[current];
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <label className="text-xs">Pad</label>
-        <select value={current} onChange={(e)=>setCurrent(parseInt(e.target.value))} className="bg-white/5 border border-white/10 rounded-xl text-xs px-2 py-1">
-          {pads.map((_,i)=>(<option key={i} value={i}>{i+1}</option>))}
-        </select>
-        <span className="text-xs opacity-60 truncate">{p?.name || 'Empty'}</span>
-      </div>
-      <div className="grid grid-cols-4 gap-3 items-center text-[11px]">
-        <label className="col-span-1">Vol</label>
-        <input className="col-span-3" type="range" min={0} max={1} step={0.01} value={p?.volume ?? 1} onChange={(e)=>setPads(prev=>prev.map((x,i)=>i===current?{...x, volume: parseFloat(e.target.value)}:x))} />
-        <label className="col-span-1">Pitch</label>
-        <input className="col-span-3" type="range" min={0.5} max={2} step={0.01} value={p?.pitch ?? 1} onChange={(e)=>setPads(prev=>prev.map((x,i)=>i===current?{...x, pitch: parseFloat(e.target.value)}:x))} />
-        <label className="col-span-1">Loop</label>
-        <input className="col-span-3" type="checkbox" checked={p?.loop ?? false} onChange={(e)=>setPads(prev=>prev.map((x,i)=>i===current?{...x, loop: e.target.checked}:x))} />
-        <label className="col-span-1" title="同じパッドを連打した時に前の音を止めます">同パッド連打でカット</label>
-        <input className="col-span-3" type="checkbox" checked={p?.choke ?? true} onChange={(e)=>setPads(prev=>prev.map((x,i)=>i===current?{...x, choke: e.target.checked}:x))} />
-        <button onClick={()=>setPads(prev=>prev.map((x,i)=>i===current?{...defaultPad()}:x))} className="col-span-4 mt-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20">Clear This Pad</button>
-      </div>
-    </div>
-  );
-}
-
-function keyHint(index: number) { const M = [ ['Q','W','E','R'], ['A','S','D','F'], ['Z','X','C','V'] ]; const r=Math.floor(index/4), c=index%4; return M[r]?.[c] ?? ''; }
-function truncate(s:string,n:number){ return s.length>n ? s.slice(0,n-1)+'…' : s; }
+};
+export default App;
