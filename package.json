@@ -35,5 +35,6 @@
   "overrides": {
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.3"
-  }
+  },
+  "packageManager": "pnpm@10.0.0"
 }
